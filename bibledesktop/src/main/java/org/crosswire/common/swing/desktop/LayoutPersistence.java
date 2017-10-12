@@ -1,0 +1,171 @@
+/**
+ * Distribution License:
+ * BibleDesktop is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License, version 2 or later
+ * as published by the Free Software Foundation. This program is distributed
+ * in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+ * the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * The License is available on the internet at:
+ *       http://www.gnu.org/copyleft/gpl.html
+ * or by writing to:
+ *      Free Software Foundation, Inc.
+ *      59 Temple Place - Suite 330
+ *      Boston, MA 02111-1307, USA
+ *
+ * © CrossWire Bible Society, 2007 - 2016
+ */
+package org.crosswire.common.swing.desktop;
+
+import java.awt.Dimension;
+import java.awt.Frame;
+import java.awt.Point;
+import java.awt.Window;
+import java.io.IOException;
+import java.net.URI;
+
+import org.crosswire.common.util.CWProject;
+import org.crosswire.common.util.FileUtil;
+import org.crosswire.common.util.NetUtil;
+import org.crosswire.common.util.PropertyMap;
+import org.crosswire.common.util.ResourceUtil;
+import org.crosswire.common.util.StringUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Window layout persistence mechanism. Intended to be flexible enough to allow
+ * persisting size, position, layout of multiple windows.
+ * 
+ * @see gnu.gpl.License for license details.
+ * @author Adam Thomas
+ * @author DM Smith
+ */
+public final class LayoutPersistence {
+
+    /**
+     * Creates the singleton persistence object capable of storing and
+     * retrieving layout information on behalf windows.
+     */
+    private LayoutPersistence() {
+        try {
+            settings = ResourceUtil.getProperties(getClass());
+        } catch (IOException e) {
+            settings = new PropertyMap();
+        }
+    }
+
+    /**
+     * All access to LayoutPersistence is through this single instance.
+     * 
+     * @return the singleton instance
+     */
+    public static LayoutPersistence instance() {
+        return instance;
+    }
+
+    /**
+     * Indicates whether the window passed to the constructor has had layout
+     * information persisted.
+     * 
+     * @param window
+     *            the window to persist
+     * @return Returns true is layout information for the current window has
+     *         been persisted, otherwise returns false
+     */
+    public synchronized boolean isLayoutPersisted(Window window) {
+        return settings.containsKey(window.getName());
+    }
+
+    /**
+     * Stores the current window's layout information.
+     * 
+     * @param window
+     *            the window to persist
+     */
+    public synchronized void saveLayout(Window window) {
+        int state = Frame.NORMAL;
+        if (window instanceof Frame) {
+            Frame frame = (Frame) window;
+            state = frame.getExtendedState();
+        }
+
+        settings.put(window.getName(), StringUtil.join(new String[] {
+                Integer.toString(state), Integer.toString(window.getWidth()), Integer.toString(window.getHeight()), Integer.toString(window.getX()),
+                Integer.toString(window.getY())
+        }, "_")
+                );
+
+        try {
+            URI outputURI = CWProject.instance().getWritableURI(getClass().getName(), FileUtil.EXTENSION_PROPERTIES);
+            NetUtil.storeProperties(settings, outputURI, "Persistent Window properties");
+        } catch (IOException ex) {
+            log.error(ex.getLocalizedMessage(), ex);
+        }
+    }
+
+    /**
+     * Loads and restores the layout to the window that was passed to the
+     * constructor.
+     * 
+     * @param window
+     *            the window to persist
+     */
+    public synchronized void restoreLayout(Window window) {
+        String[] parts = StringUtil.splitAll(settings.get(window.getName()), '_');
+
+        // If our window did not have saved settings do nothing.
+        if (parts == null || parts.length == 0) {
+            return;
+        }
+
+        if (window instanceof Frame) {
+            Frame frame = (Frame) window;
+            frame.setExtendedState(Integer.parseInt(parts[STATE]));
+        }
+
+        window.setSize(new Dimension(Integer.parseInt(parts[WIDTH]), Integer.parseInt(parts[HEIGHT])));
+        window.setLocation(new Point(Integer.parseInt(parts[LOCATION_X]), Integer.parseInt(parts[LOCATION_Y])));
+    }
+
+    /**
+     * The persistence storage and retrieval object
+     */
+    private PropertyMap settings;
+
+    /**
+     * Suffix for window state key
+     */
+    private static final int STATE = 0;
+
+    /**
+     * Suffix for window width key
+     */
+    private static final int WIDTH = 1;
+
+    /**
+     * Suffix for window height key
+     */
+    private static final int HEIGHT = 2;
+
+    /**
+     * Suffix for window location x key
+     */
+    private static final int LOCATION_X = 3;
+
+    /**
+     * Suffix for window location y key
+     */
+    private static final int LOCATION_Y = 4;
+
+    /**
+     * The singleton instance of this class.
+     */
+    private static LayoutPersistence instance = new LayoutPersistence();
+
+    /**
+     * The log stream
+     */
+    private static final Logger log = LoggerFactory.getLogger(LayoutPersistence.class);
+}
