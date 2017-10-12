@@ -1,0 +1,242 @@
+<project name="bibledesktop" default="all">
+
+	<!-- This build uses the core build targets -->
+	<import file="../jsword/core.xml"/>
+	<property name="dependency"		value="jsword"/>
+
+	<!--=======================================================================-->
+	<!-- override -->
+	<property name="jnlp.homepage"			value="file:///${basedir}/${dest.install.pkg.dir}"/>
+	<!-- override -->
+	<property name="jnlp.codebase"			value="file:///${basedir}/${dest.install.pkg.dir}"/>
+	<!-- override -->
+	<property name="website.bd.dir"			value="${dest.install.web.dir}"/>
+	<!-- override -->
+	<property name="package.bd.dir"				value="${dest.install.pkg.dir}"/>
+	<property name="package.bd.win.dir"			value="${package.bd.dir}/windows"/>
+	<property name="package.bd.webstart.dir"	value="${package.bd.dir}/webstart"/>
+
+	<property name="gener.root"	value="${dest.dir}/gener"/>
+
+	<target	name="prepare"
+		    depends="resource.main, resource.test"
+			description="Prepare the build by copying needed jars and files">
+		<copy	verbose="${verbose.copy}"
+				todir="${lib.dir}"
+				flatten="true"
+				preservelastmodified="true">
+			<fileset dir="jar" includes="**/*.jar"/>
+		</copy>
+	</target>
+
+	<!--=======================================================================-->
+	<target name="compile.test.extra.dont.do">
+		<mkdir dir="${gener.root}/config"/>
+		<xslt	in="${src.main.res.dir}/config.xml"
+				out="${gener.root}/config/Configsrc.test.java.dir"
+				style="${etc.shared.dir}/config-test.xsl">
+			<xmlcatalog refid="commonDTDs"/>
+		</xslt>
+		<javac	debug="on"
+	    		includes="**/*.java"
+	    		destdir="${dest.test.classes.dir}"
+				includeantruntime="false"
+				target="1.5">
+			<src path="${gener.root}/config"/>
+			<classpath refid="classpath.test"/>
+		</javac>
+		<xmlcatalog refid="commonDTDs"/>
+	</target>
+
+	<!--=======================================================================-->
+	<target	name="package.extra"
+			depends="package.macosx, package.windows"/> <!-- package.webstart, -->
+
+	<!-- Package the command-line distribution -->
+	<target name="package.bin">
+		<mkdir dir="${dest.install.pkg.dir}"/>
+		<!-- Ensure sane execute permissions -->
+		<chmod perm="a+x">
+			<fileset dir="${etc.dir}/bin" includes="*.sh"/>
+		</chmod>
+
+		<!-- Ensure that line endings are consistent with un*x platform -->
+		<fixcrlf srcdir="${etc.dir}/bin" eol="lf">
+			<include name="*.sh"/>
+		</fixcrlf>
+
+		<!-- Ensure that line endings are consistent with the windows platform -->
+		<fixcrlf srcdir="${etc.dir}/bin" eol="crlf">
+			<include name="*.bat"/>
+		</fixcrlf>
+
+		<zip destfile="${dest.install.pkg.dir}/${name.timestamped}-bin.zip">
+			<zipfileset prefix="${name.versioned}" dir="${etc.dir}/images" includes="*.png"/>
+			<zipfileset prefix="${name.versioned}" file="${etc.dir}/license/gpl.txt"/>
+			<zipfileset prefix="${name.versioned}" dir="${lib.dir}">
+				<patternset refid="patternset.runtime"/>
+			</zipfileset>
+			<zipfileset prefix="${name.versioned}" dir="${etc.dir}/bin" includes="*.sh" filemode="755"/>
+			<zipfileset prefix="${name.versioned}" dir="${etc.dir}/bin" includes="*.bat"/>
+			<zipfileset prefix="${name.versioned}" dir="${package.bd.dir}" includes="BibleDesktop.exe"/>
+		</zip>
+	</target>
+
+	<!-- Prepare the WebStart distribution -->
+    <target name="package.webstart"
+        depends="keygen">
+		<mkdir dir="${package.bd.dir}"/>
+		<mkdir dir="${package.bd.webstart.dir}"/>
+
+		<!-- Copy the files needed for the distribution -->
+		<copy	verbose="${verbose.copy}"
+				todir="${package.bd.webstart.dir}"
+				preservelastmodified="true">
+			<fileset dir="${etc.dir}/jnlp">
+				<include name="*.gif"/>
+			</fileset>
+		</copy>
+
+		<!-- Put signed copies of the jars where Webstart can get them. -->
+	    <signjar
+	    		destDir="${package.bd.webstart.dir}"
+				storepass="${keystore.pswd}"
+				alias="${keystore.alias}"
+				keystore="${keystore.file}"
+				preservelastmodified="true"
+				lazy="true">
+			<path refid="classpath.runtime"/>
+	    </signjar>
+
+		<!-- Copy and filter to make it work -->
+		<copy	verbose="${verbose.copy}"
+				file="${etc.dir}/jnlp/bibledesktop.jnlp"
+				tofile="${package.bd.webstart.dir}/bibledesktop.jnlp"
+				filtering="true"
+				preservelastmodified="true">
+			<filterset>
+				<filter token="jnlp.homepage"   value="${jnlp.homepage}"/>
+				<filter token="jnlp.codebase"   value="${jnlp.codebase}"/>
+				<filter token="release.version" value="${release.version}"/>
+			</filterset>
+		</copy>
+	</target>
+
+	<!-- Prepare the Mac distribution as a zip file. -->
+    <target name="package.macosx">
+		<mkdir dir="${package.bd.dir}"/>
+		<copy	verbose="${verbose.copy}"
+				file="${etc.dir}/installer/macosx/Bible Desktop.app/Contents/Info.plist"
+				toFile="${package.bd.dir}/Info.plist"
+				preservelastmodified="true">
+			<filterset>
+				<filter token="release.version" value="${release.version}"/>
+			</filterset>
+		</copy>
+
+		<zip destfile="${package.bd.dir}/Bible Desktop.app.zip" update="true">
+			<!-- Copy everything but the executable (zip will not preserve permissions)
+			  == And Info.plist, which needs to be filtered.
+			  -->
+			<zipfileset
+					prefix="Bible Desktop.app"
+					dir="${etc.dir}/installer/macosx/Bible Desktop.app">
+				<exclude name="**/*JavaAppLauncher*"/>
+				<exclude name="**/*Info.plist"/>
+			</zipfileset>
+			<!-- Copy the executable and set the right permissions -->
+			<zipfileset
+					prefix="Bible Desktop.app/Contents/MacOS"
+					filemode="755"
+					file="${etc.dir}/installer/macosx/Bible Desktop.app/Contents/MacOS/JavaAppLauncher"/>
+			<!-- Copy the filtered Info.plist file -->
+			<zipfileset
+					prefix="Bible Desktop.app/Contents"
+					file="${package.bd.dir}/Info.plist"/>
+			<!-- Add in all the unsigned jars -->
+			<zipfileset
+					prefix="Bible Desktop.app/Contents/Java"
+					dir="${lib.dir}">
+				<patternset refid="patternset.runtime"/>
+			</zipfileset>
+		</zip>
+		<delete file="${package.bd.dir}/Info.plist"/>
+    </target>
+
+	<target name="package.macosx.bundler"
+	    depends="appbundler.task"
+        if="appbundler.available">
+		<mkdir dir="${package.bd.dir}"/>
+        <bundleapp
+            jrepreferred="true"
+        	outputdirectory="${package.bd.dir}"
+            name="Bible Desktop"
+            displayname="Bible Desktop"
+            identifier="org.crosswire.jsword"
+            mainclassname="org.crosswire.bibledesktop.desktop.Desktop"
+        	icon="${etc.dir}/installer/macosx/Bible Desktop.app/Contents/Resources/BibleDesktop.icns"
+        	shortversion="@release.version@"
+        	version="@release.version@"
+        	copyright="Bible Desktop v@release.version@ (c) 2016"
+        >
+          <classpath dir="${lib.dir}">
+			<patternset refid="patternset.runtime"/>
+          </classpath>
+          <option value="-Xdock:name=Bible Desktop"/>
+          <option value="-Dapple.laf.useScreenMenuBar=true"/>
+          <option value="-Dcom.apple.macos.use-file-dialog-packages=true"/>
+          <option value="-Dcom.apple.macos.useScreenMenuBar=true"/>
+          <option value="-Dcom.apple.mrj.application.apple.menu.about.name=Bible Desktop"/>
+          <option value="-Dcom.apple.smallTabs=true"/>
+          <option value="-Dfile.encoding=UTF-8"/>
+          <option value="-Xmx1024M" name="Xmx"/>
+        </bundleapp>
+    </target>
+
+	<!-- Build the Windows installers -->
+	<target	name="package.windows"
+			depends="nsis.task"
+	        if="nsis.available">
+		<mkdir dir="${package.bd.dir}"/>
+		<mkdir dir="${package.bd.win.dir}"/>
+
+		<!-- Copy the files needed for the distribution -->
+		<copy	verbose="${verbose.copy}"
+				todir="${package.bd.win.dir}"
+				preservelastmodified="true">
+			<fileset dir="${etc.dir}/installer/win32">
+				<include name="*.ico"/>
+			</fileset>
+			<fileset file="${etc.dir}/license/gpl.txt"/>
+			<fileset dir="${lib.dir}">
+				<patternset refid="patternset.runtime"/>
+			</fileset>
+		</copy>
+
+		<copy	verbose="${verbose.copy}"
+				todir="${package.bd.win.dir}"
+				preservelastmodified="true"
+				filtering="true">
+			<fileset dir="${etc.dir}/installer/win32">
+				<include name="*.nsi"/>
+			</fileset>
+			<filterset>
+				<filter token="release.version" value="${release.version}"/>
+			</filterset>
+		</copy>
+		<nsis verbosity="2" script="${package.bd.win.dir}/BibleDesktop.nsi"/>
+		<nsis verbosity="2" script="${package.bd.win.dir}/PortableBibleDesktop.nsi"/>
+		<nsis verbosity="2" script="${package.bd.win.dir}/BibleDesktopSetup.nsi"/>
+		<copy	verbose="${verbose.copy}"
+				todir="${package.bd.dir}"
+				preservelastmodified="true">
+			<fileset dir="${package.bd.win.dir}">
+				<include name="*.ico"/>
+				<include name="BibleDesktopSetup.exe"/>
+				<include name="PortableBibleDesktop.exe"/>
+			</fileset>
+		</copy>
+		<delete dir="${package.bd.win.dir}"/>
+	</target>
+
+</project>
