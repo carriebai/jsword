@@ -1,0 +1,25 @@
+# Distribution License:
+# BibleDesktop is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License, version 2 or later
+# as published by the Free Software Foundation. This program is distributed
+# in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even
+# the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU General Public License for more details.
+#
+# The License is available on the internet at:
+#      http://www.gnu.org/copyleft/gpl.html
+# or by writing to:
+#      Free Software Foundation, Inc.
+#      59 Temple Place - Suite 330
+#      Boston, MA 02111-1307, USA
+#
+# Copyright CrossWire Bible Society, 2005 - 2016
+#
+
+Bible Desktop Authors:
+Joe Walker [joe at eireneh dot com]
+DM Smith [dmsmith at crosswire dot org]
+Mark Goodwin [mark at thorubio dot org]
+Willie Thean [williethean at yahoo dot com]
+Yingjie Lan [lanyjie at yahoo dot com]
+Adam Thomas [adam-thomas at cox dot net]
